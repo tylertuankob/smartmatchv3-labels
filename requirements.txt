@@ -6,3 +6,4 @@ streamlit
 streamlit_tags
 streamlit_pills
 supabase
+st_annotated_text

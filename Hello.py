@@ -8,9 +8,15 @@ from streamlit_tags import st_tags
 import sys
 import os
 from supabase import create_client, Client
+from annotated_text import annotated_text
 
 def get_demo_titles(candidate):
     return candidate["grades"]["Successful Expert"] + candidate["grades"]["Expert"] + candidate["grades"]["Relevant"]
+
+@st.cache_resource
+def get_data(url):
+    # Create a database session object that points to the URL.
+    return u.load_json(url)
 
 @st.cache_resource
 def get_client():
@@ -88,15 +94,18 @@ if __name__ == '__main__':
     candidate = demo[candidate_id]
     match = candidate["match"].get(title, None)
 
-    st.title(title)
-    st.subheader("Common Skills")
-    st.write(" | ".join(graph["graph"][title]["skills"]))
-
     st.subheader("Label Action")
 
     if mode == GROUND_TRUTH_MODE:
         options = ["Postpone for Later", "Strong", "Acceptable", "Irrelevant"]
-        label = pills("Is this candidate a match for {}?".format(title),
+
+        annotated_text([
+            "Is this candidate a match for ",
+            (title, "title"),
+            " ?"
+        ])
+
+        label = pills(label="Please select your opinion",
                       options=options,
                       index=None if d["label"] is None else options.index(d["label"]))
 
@@ -113,9 +122,24 @@ if __name__ == '__main__':
 
     if mode == FEEDBACK_MODE:
         options = ["Postpone for Later", "Agree", "Acceptable", "Disagree"]
-        label = pills(("This candidate will not be shown for " if title not in candidate["match"] else
-                      "The matching grade for this candidate is {} for".format(candidate["match"][title]["grade"])) +
-                      " {}. What do you think? \n [Successful Expert, Expert, Relevant, Irrelevant]".format(title),
+
+        matching = "Irrelevant" if title not in candidate["match"] else candidate["match"][title]["grade"]
+
+        annotated_text([
+            "The matching grade for this candidate is ",
+            (matching, "SmartMatch V3 Result"),
+            " for ",
+            (title, "title"),
+            " . What do you think?"
+        ])
+
+        annotated_text(["Grades options - ",
+                        ("Successful Expert", "grade"),
+                        ("Expert", "grade"),
+                        ("Relevant", "grade"),
+                        ("Irrelevant", "grade")])
+
+        label = pills(label="Please select your opinion",
                       options=options,
                       index=None if d["label"] is None else options.index(d["label"]))
 
@@ -130,16 +154,25 @@ if __name__ == '__main__':
         d["label"] = label
 
 
+    st.title(title)
+    st.subheader("Common Skills")
+    annotated_text(
+        [(s, "") for s in graph["graph"][title]["skills"]]
+    )
+    # st.write(" | ".join(graph["graph"][title]["skills"]))
+
+
     st.title("Candidate Profile")
 
     st.subheader("Summary")
     st.write(candidate["summary"])
 
     if mode == FEEDBACK_MODE:
+        st.subheader("Matching Details")
+
         if match is None:
             st.write("Not available")
         else:
-            analytical_graph = graphviz.Digraph()
             skills_details = match["details"]["skills"]
 
             st.write("Matching Highlights")
@@ -159,6 +192,11 @@ if __name__ == '__main__':
 
                 reversed_map[ms].append(ps)
 
+            annotated_text(
+                [(s, "" if s not in reversed_map else str(len(reversed_map[s])))
+                 for s in graph["graph"][title]["skills"]]
+            )
+
             for ms, pss in reversed_map.items():
                 st.write("Relevant skills for '{}'".format(ms))
                 st.json(pss)
@@ -173,8 +211,3 @@ if __name__ == '__main__':
 
     st.subheader("Full Text")
     st.write(candidate["profile"]["text"]["text"].replace("\\n", "\n"))
-
-
-
-
-
